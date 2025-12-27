@@ -14,9 +14,8 @@
     </style>
   </head>
   <body>
-    <h1>qBerry</h1>
-    <p class="muted">Source: <code>data/data.csv</code></p>
-
+    <h1>🍓qBerry</h1>
+    
     <div id="status" class="muted">Loading…</div>
     <div id="error" class="error"></div>
 
@@ -26,11 +25,9 @@
     </table>
 
     <script>
-      const CSV_URL = "data/data.csv"; // IMPORTANT: relative path for project Pages
+      const CSV_URL = "data/data.csv";
 
       function parseCSV(text) {
-        // Our dataset is simple: no quoted commas, no multiline fields.
-        // Good enough for numeric CSV like: t,q,v,qV,qP,aV,aP
         const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n");
         if (lines.length === 0) return { header: [], rows: [] };
 
@@ -96,7 +93,7 @@
           }
 
           if (rows.length === 0) {
-            status.textContent = "No rows yet. First row will appear after the first successful 20:00 run.";
+            status.textContent = "No data.";
             buildTable(header, []); // show header only
             return;
           }
