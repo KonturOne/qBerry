@@ -29,6 +29,8 @@ jobs:
         run: pip install requests
 
       - name: Run fetcher
+        env:
+          ANU_QRNG_API_KEY: ${{ secrets.ANU_QRNG_API_KEY }}
         run: python scripts/fetch_data.py
 
       - name: Commit data if changed
