@@ -4,9 +4,113 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>qBerry</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ddd; padding: 8px; font-size: 14px; }
+      th { position: sticky; top: 0; background: #f7f7f7; }
+      .muted { color: #666; }
+      .error { color: #b00020; white-space: pre-wrap; }
+    </style>
   </head>
   <body>
     <h1>qBerry</h1>
-    <p>Hello there.</p>
+    <p class="muted">Source: <code>data/data.csv</code></p>
+
+    <div id="status" class="muted">Loading…</div>
+    <div id="error" class="error"></div>
+
+    <table id="tbl" aria-label="qBerry data" hidden>
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+
+    <script>
+      const CSV_URL = "data/data.csv"; // IMPORTANT: relative path for project Pages
+
+      function parseCSV(text) {
+        // Our dataset is simple: no quoted commas, no multiline fields.
+        // Good enough for numeric CSV like: t,q,v,qV,qP,aV,aP
+        const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim().split("\n");
+        if (lines.length === 0) return { header: [], rows: [] };
+
+        const header = lines[0].split(",").map(s => s.trim());
+        const rows = lines.slice(1)
+          .filter(line => line.trim() !== "")
+          .map(line => {
+            const cols = line.split(",");
+            const obj = {};
+            header.forEach((h, i) => obj[h] = (cols[i] ?? "").trim());
+            return obj;
+          });
+
+        return { header, rows };
+      }
+
+      function buildTable(header, rows) {
+        const table = document.getElementById("tbl");
+        const thead = table.querySelector("thead");
+        const tbody = table.querySelector("tbody");
+        thead.innerHTML = "";
+        tbody.innerHTML = "";
+
+        // Header row
+        const trh = document.createElement("tr");
+        for (const h of header) {
+          const th = document.createElement("th");
+          th.textContent = h;
+          trh.appendChild(th);
+        }
+        thead.appendChild(trh);
+
+        // Data rows (newest first)
+        const sorted = [...rows].reverse();
+        for (const r of sorted) {
+          const tr = document.createElement("tr");
+          for (const h of header) {
+            const td = document.createElement("td");
+            td.textContent = r[h] ?? "";
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+
+        table.hidden = false;
+      }
+
+      async function main() {
+        const status = document.getElementById("status");
+        const error = document.getElementById("error");
+
+        try {
+          // fetch() returns a Promise resolving to a Response; we read its text() to get the CSV. :contentReference[oaicite:2]{index=2}
+          const res = await fetch(CSV_URL, { cache: "no-store" });
+          if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${CSV_URL}`);
+          const text = await res.text();
+
+          const { header, rows } = parseCSV(text);
+
+          if (header.length === 0) {
+            status.textContent = "CSV is empty or missing header.";
+            return;
+          }
+
+          if (rows.length === 0) {
+            status.textContent = "No rows yet. First row will appear after the first successful 20:00 run.";
+            buildTable(header, []); // show header only
+            return;
+          }
+
+          const last = rows[rows.length - 1];
+          status.textContent = `Loaded ${rows.length} rows. Latest t: ${last.t || "(unknown)"}`;
+          buildTable(header, rows);
+        } catch (e) {
+          status.textContent = "";
+          error.textContent = String(e);
+        }
+      }
+
+      main();
+    </script>
   </body>
 </html>
