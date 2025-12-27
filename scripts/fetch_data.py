@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
+import os
 
 import requests
 
@@ -18,7 +19,10 @@ except ImportError:
 
 BUDAPEST_TZ = ZoneInfo("Europe/Budapest")
 
-ANU_URL = "https://qrng.anu.edu.au/API/jsonI.php?length=1&type=uint16"
+# New AWS-hosted ANU Quantum Numbers API (requires x-api-key)
+ANU_API_URL = "https://api.quantumnumbers.anu.edu.au"
+ANU_API_KEY_ENV = "ANU_QRNG_API_KEY"
+
 COINBASE_SPOT_URL = "https://api.coinbase.com/v2/prices/BTC-USD/spot"
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -34,8 +38,20 @@ def _round(x: Optional[float], ndigits: int) -> str:
     return f"{round(x, ndigits):.{ndigits}f}"
 
 
+def _get_anu_api_key() -> str:
+    key = os.environ.get(ANU_API_KEY_ENV)
+    if not key or not key.strip():
+        raise SystemExit(
+            f"Missing required environment variable {ANU_API_KEY_ENV}. "
+            "Set it from your GitHub Actions repo secret."
+        )
+    return key.strip()
+
+
 def fetch_anu_uint16() -> int:
-    r = requests.get(ANU_URL, timeout=20)
+    headers = {"x-api-key": _get_anu_api_key()}
+    params = {"length": 1, "type": "uint16"}
+    r = requests.get(ANU_API_URL, headers=headers, params=params, timeout=20)
     r.raise_for_status()
     j = r.json()
     if "data" not in j or not isinstance(j["data"], list) or len(j["data"]) != 1:
