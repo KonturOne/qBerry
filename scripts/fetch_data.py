@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import math
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -19,7 +18,6 @@ except ImportError:
 
 BUDAPEST_TZ = ZoneInfo("Europe/Budapest")
 
-# New AWS-hosted ANU Quantum Numbers API (requires x-api-key)
 ANU_API_URL = "https://api.quantumnumbers.anu.edu.au"
 ANU_API_KEY_ENV = "ANU_QRNG_API_KEY"
 
@@ -48,14 +46,42 @@ def _get_anu_api_key() -> str:
     return key.strip()
 
 
+def _truncate_body(s: str, max_len: int = 400) -> str:
+    s = (s or "").strip()
+    s = s.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n")
+    if len(s) > max_len:
+        return s[:max_len] + "…"
+    return s
+
+
 def fetch_anu_uint16() -> int:
-    headers = {"x-api-key": _get_anu_api_key()}
+    key = _get_anu_api_key()
+    headers = {"x-api-key": key}
     params = {"length": 1, "type": "uint16"}
-    r = requests.get(ANU_API_URL, headers=headers, params=params, timeout=20)
-    r.raise_for_status()
-    j = r.json()
+
+    try:
+        r = requests.get(ANU_API_URL, headers=headers, params=params, timeout=20)
+    except requests.RequestException as e:
+        raise SystemExit(f"ANU request failed: {e}") from e
+
+    if r.status_code != 200:
+        body = _truncate_body(r.text)
+        raise SystemExit(
+            "ANU API request rejected. "
+            f"status={r.status_code} url={r.url} key_len={len(key)} body={body}"
+        )
+
+    try:
+        j = r.json()
+    except ValueError as e:
+        body = _truncate_body(r.text)
+        raise SystemExit(
+            f"ANU API returned non-JSON response. status={r.status_code} url={r.url} body={body}"
+        ) from e
+
     if "data" not in j or not isinstance(j["data"], list) or len(j["data"]) != 1:
         raise ValueError(f"Unexpected ANU payload shape: {j}")
+
     n = int(j["data"][0])
     if not (0 <= n <= 65535):
         raise ValueError(f"ANU uint16 out of range: {n}")
@@ -121,14 +147,14 @@ def main() -> int:
     if has_row_for_date(rows, today):
         print(f"[SKIP] Row already exists for {today}")
         return 0
-      
+
     n = fetch_anu_uint16()
     q = map_uint16_to_q(n)
     v = fetch_btc_usd_spot()
 
     qV = v * (1.0 + q)
     qP = q
-  
+
     if rows:
         prev = rows[-1]
         if is_empty(prev.get("aV")) and is_empty(prev.get("aP")) and not is_empty(prev.get("qV")):
